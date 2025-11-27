@@ -1,42 +1,151 @@
-# Terraform Provider release workflow.
-name: Release
+name: Release Terraform Provider
 
-# This GitHub action creates a release when a tag that matches the pattern
-# "v*" (e.g. v0.1.0) is created.
 on:
   push:
     tags:
-      - 'v*'
+      - "v*.*.*"
 
-# Releases need permissions to read and write the repository contents.
-# GitHub considers creating releases and uploading assets as writing contents.
 permissions:
   contents: write
 
 jobs:
-  goreleaser:
+  build:
+    name: Build provider
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          # Allow goreleaser to access older tag information.
-          fetch-depth: 0
-      - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
-        with:
-          go-version-file: 'go.mod'
-          cache: true
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
-        id: import_gpg
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.PASSPHRASE }}
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
-        with:
-          args: release --clean
-        env:
-          # GitHub sets the GITHUB_TOKEN secret automatically.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
 
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Set version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create build directory
+        run: mkdir -p dist
+
+      - name: Build for all OS/Arch
+        run: |
+          OS_ARCHES=(
+            "linux amd64"
+            "linux arm64"
+            "darwin amd64"
+            "darwin arm64"
+            "windows amd64"
+          )
+
+          for target in "${OS_ARCHES[@]}"; do
+            set -- $target
+            GOOS=$1 GOARCH=$2 CGO_ENABLED=0 \
+              go build -o "dist/terraform-provider-myprovider_${{ steps.version.outputs.VERSION }}_${1}_${2}" .
+          done
+
+      - name: Zip artifacts
+        run: |
+          cd dist
+          for f in terraform-provider-myprovider_*; do
+            zip "$f.zip" "$f"
+            rm "$f"
+          done
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          shasum -a 256 *.zip > terraform-provider-myprovider_${{ steps.version.outputs.VERSION }}_SHA256SUMS
+
+      - name: Display artifacts
+        run: ls -R dist
+
+      - name: Upload release artifacts
+        id: upload_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  update-registry:
+    name: Update registry metadata
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout registry repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.REGISTRY_REPO }}
+          token: ${{ secrets.GH_TOKEN }}
+          path: registry
+
+      - name: Checkout provider repo (for hashes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: provider
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Prepare registry folder
+        run: |
+          mkdir -p registry/providers/github.com/${{ github.repository_owner }}/myprovider/${{ steps.version.outputs.VERSION }}
+
+      - name: Generate index.json
+        run: |
+          cat > registry/providers/github.com/${{ github.repository_owner }}/myprovider/index.json <<EOF
+          {
+            "versions": [
+              { "version": "${{ steps.version.outputs.VERSION }}" }
+            ]
+          }
+          EOF
+
+      - name: Parse SHASUMS and create download.json
+        run: |
+          cd provider/dist
+
+          # Start JSON
+          echo '{' > download.json
+          echo '  "protocols": ["5.0"],' >> download.json
+          echo '  "os_arch": {' >> download.json
+
+          first=true
+          while read -r sha file; do
+            os=$(echo $file | cut -d'_' -f4)
+            arch=$(echo $file | cut -d'_' -f5 | sed 's/.zip//')
+
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo ',' >> download.json
+            fi
+
+            cat <<EOF >> download.json
+          
+            "$os_$arch": {
+              "filename": "$file",
+              "download_url": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/$file",
+              "shasum": "$sha"
+            }
+          EOF
+          
+          done < terraform-provider-myprovider_${{ steps.version.outputs.VERSION }}_SHA256SUMS
+          
+          echo -e "\n  }\n}" >> download.json
+          
+          mkdir -p ../../registry/providers/github.com/${{ github.repository_owner }}/myprovider/${{ steps.version.outputs.VERSION }}
+          cp download.json ../../registry/providers/github.com/${{ github.repository_owner }}/myprovider/${{ steps.version.outputs.VERSION }}/download.json
+
+      - name: Commit and push registry updates
+        run: |
+          cd registry
+          git add .
+          git commit -m "Update registry for version ${{ steps.version.outputs.VERSION }}"
+          git push origin ${{ secrets.REGISTRY_BRANCH }}

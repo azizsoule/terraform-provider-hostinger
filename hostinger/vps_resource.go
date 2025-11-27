@@ -126,6 +126,12 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 
+	var postInstallScriptID *int
+	if v, ok := d.GetOk("post_install_script_id"); ok {
+		id := v.(int)
+		postInstallScriptID = &id
+	}
+
 	ok, err := client.ValidatePlanID(plan)
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("failed to validate plan: %w", err))
@@ -150,8 +156,18 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 		return diag.Errorf("Invalid data center ID: %d", dataCenterID)
 	}
 
-	// Step 1: Place an order via Hostinger Billing API
-	subID, err := client.OrderVPS(plan, paymentMethodID)
+	// Step 1: Purchase the VPS to create a subscription
+	subID, err := client.PurchaseVirtualMachine(PurchaseVMRequest{
+		ItemID:          plan,
+		PaymentMethodID: &paymentMethodID,
+		Setup: SetupRequest{
+			DataCenterID:        dataCenterID,
+			TemplateID:          templateID,
+			Password:            passwordPtr,
+			Hostname:            hostnamePtr,
+			PostInstallScriptId: postInstallScriptID,
+		},
+	})
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("failed to create VPS order: %w", err))
 	}
@@ -174,18 +190,6 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 	}
 	if !found {
 		return diag.Errorf("timed out waiting for VPS instance to be created (subscription %s)", subID)
-	}
-
-	// Step 3: Call the VPS setup endpoint to activate the server
-	setupReq := SetupRequest{
-		DataCenterID: dataCenterID,
-		TemplateID:   templateID,
-		Password:     passwordPtr,
-		Hostname:     hostnamePtr,
-	}
-	_, err = client.SetupVirtualMachine(vmID, setupReq)
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("failed to set up VPS (ID %d): %w", vmID, err))
 	}
 
 	// Attach SSH keys (optional)
