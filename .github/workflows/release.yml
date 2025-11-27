@@ -98,11 +98,11 @@ jobs:
 
       - name: Prepare registry folder
         run: |
-          mkdir -p registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}
+          mkdir -p registry/providers/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}
 
       - name: Generate index.json
         run: |
-          cat > registry/providers/github.com/${{ github.repository_owner }}/hostinger/index.json <<EOF
+          cat > registry/providers/${{ github.repository_owner }}/hostinger/index.json <<EOF
           {
             "versions": [
               { "version": "${{ steps.version.outputs.VERSION }}" }
@@ -131,8 +131,9 @@ jobs:
 
           first=true
           while read -r sha file; do
-            os=$(echo "$file" | cut -d'_' -f4)
-            arch=$(echo "$file" | cut -d'_' -f5 | sed 's/.zip//')
+            # Filename format: terraform-provider-hostinger_VERSION_OS_ARCH.zip
+            os=$(echo "$file" | cut -d'_' -f3)
+            arch=$(echo "$file" | cut -d'_' -f4 | sed 's/.zip//')
 
             if [ "$first" = true ]; then
               first=false
@@ -141,7 +142,6 @@ jobs:
             fi
 
             cat <<EOF >> download.json
-
             "${os}_${arch}": {
               "filename": "$file",
               "download_url": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/$file",
@@ -153,7 +153,7 @@ jobs:
 
           echo -e "\n  }\n}" >> download.json
 
-          cp download.json ../registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}/download.json
+          cp download.json ../registry/providers/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}/download.json
 
       - name: Commit and push registry updates
         run: |
@@ -182,17 +182,6 @@ jobs:
           cp -r .well-known _site/ 2>/dev/null || true
           cp -r providers _site/ 2>/dev/null || true
           cp README.md _site/index.md 2>/dev/null || true
-
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-
-      - name: Convert README to HTML
-        run: |
-          gem install kramdown
-          kramdown _site/index.md > _site/index.html
-          rm _site/index.md
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
