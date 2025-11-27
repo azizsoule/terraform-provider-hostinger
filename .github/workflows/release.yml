@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -161,3 +163,45 @@ jobs:
           git add .
           git commit -m "Update registry for version ${{ steps.version.outputs.VERSION }}"
           git push origin ${{ secrets.REGISTRY_BRANCH }}
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: update-registry
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare pages content
+        run: |
+          mkdir -p _site
+          cp -r .well-known _site/ 2>/dev/null || true
+          cp -r providers _site/ 2>/dev/null || true
+          cp README.md _site/index.md 2>/dev/null || true
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Convert README to HTML
+        run: |
+          gem install kramdown
+          kramdown _site/index.md > _site/index.html
+          rm _site/index.md
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
