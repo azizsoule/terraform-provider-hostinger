@@ -102,13 +102,17 @@ jobs:
 
       - name: Generate index.json
         run: |
-          cat > registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/index.json <<EOF
-          {
-            "versions": [
-              { "version": "${{ steps.version.outputs.VERSION }}" }
-            ]
-          }
-          EOF
+          INDEX_FILE="registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/index.json"
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          # If index.json exists, add new version; otherwise create new file
+          if [ -f "$INDEX_FILE" ]; then
+            # Add new version to existing index
+            jq --arg v "$VERSION" '.versions[$v] = {}' "$INDEX_FILE" > tmp.json && mv tmp.json "$INDEX_FILE"
+          else
+            # Create new index.json
+            echo "{\"versions\": {\"$VERSION\": {}}}" | jq . > "$INDEX_FILE"
+          fi
 
       - name: Download SHA256SUMS from release
         run: |
