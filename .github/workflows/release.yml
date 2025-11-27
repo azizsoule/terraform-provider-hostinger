@@ -107,9 +107,19 @@ jobs:
           }
           EOF
 
+      - name: Download SHA256SUMS from release
+        run: |
+          mkdir -p artifacts
+          gh release download "v${{ steps.version.outputs.VERSION }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS" \
+            --dir artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
       - name: Parse SHASUMS and create download.json
         run: |
-          cd provider/dist
+          cd artifacts
 
           # Start JSON
           echo '{' > download.json
@@ -118,8 +128,8 @@ jobs:
 
           first=true
           while read -r sha file; do
-            os=$(echo $file | cut -d'_' -f4)
-            arch=$(echo $file | cut -d'_' -f5 | sed 's/.zip//')
+            os=$(echo "$file" | cut -d'_' -f4)
+            arch=$(echo "$file" | cut -d'_' -f5 | sed 's/.zip//')
 
             if [ "$first" = true ]; then
               first=false
@@ -128,20 +138,19 @@ jobs:
             fi
 
             cat <<EOF >> download.json
-          
-            "$os_$arch": {
+
+            "${os}_${arch}": {
               "filename": "$file",
               "download_url": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/$file",
               "shasum": "$sha"
             }
           EOF
-          
+
           done < terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS
-          
+
           echo -e "\n  }\n}" >> download.json
-          
-          mkdir -p ../../registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}
-          cp download.json ../../registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}/download.json
+
+          cp download.json ../registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}/download.json
 
       - name: Commit and push registry updates
         run: |
