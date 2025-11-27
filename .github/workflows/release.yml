@@ -81,6 +81,7 @@ jobs:
         with:
           repository: ${{ secrets.REGISTRY_REPO }}
           token: ${{ secrets.GH_TOKEN }}
+          ref: ${{ secrets.REGISTRY_BRANCH }}
           path: registry
 
       - name: Checkout provider repo (for hashes)
