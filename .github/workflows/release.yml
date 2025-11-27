@@ -42,13 +42,13 @@ jobs:
           for target in "${OS_ARCHES[@]}"; do
             set -- $target
             GOOS=$1 GOARCH=$2 CGO_ENABLED=0 \
-              go build -o "dist/terraform-provider-myprovider_${{ steps.version.outputs.VERSION }}_${1}_${2}" .
+              go build -o "dist/terraform-provider-hostinger{{ steps.version.outputs.VERSION }}_${1}_${2}" .
           done
 
       - name: Zip artifacts
         run: |
           cd dist
-          for f in terraform-provider-myprovider_*; do
+          for f in terraform-provider-hostinger_*; do
             zip "$f.zip" "$f"
             rm "$f"
           done
@@ -56,7 +56,7 @@ jobs:
       - name: Generate SHA256SUMS
         run: |
           cd dist
-          shasum -a 256 *.zip > terraform-provider-myprovider_${{ steps.version.outputs.VERSION }}_SHA256SUMS
+          shasum -a 256 *.zip > terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS
 
       - name: Display artifacts
         run: ls -R dist
@@ -95,11 +95,11 @@ jobs:
 
       - name: Prepare registry folder
         run: |
-          mkdir -p registry/providers/github.com/${{ github.repository_owner }}/myprovider/${{ steps.version.outputs.VERSION }}
+          mkdir -p registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}
 
       - name: Generate index.json
         run: |
-          cat > registry/providers/github.com/${{ github.repository_owner }}/myprovider/index.json <<EOF
+          cat > registry/providers/github.com/${{ github.repository_owner }}/hostinger/index.json <<EOF
           {
             "versions": [
               { "version": "${{ steps.version.outputs.VERSION }}" }
@@ -136,12 +136,12 @@ jobs:
             }
           EOF
           
-          done < terraform-provider-myprovider_${{ steps.version.outputs.VERSION }}_SHA256SUMS
+          done < terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS
           
           echo -e "\n  }\n}" >> download.json
           
-          mkdir -p ../../registry/providers/github.com/${{ github.repository_owner }}/myprovider/${{ steps.version.outputs.VERSION }}
-          cp download.json ../../registry/providers/github.com/${{ github.repository_owner }}/myprovider/${{ steps.version.outputs.VERSION }}/download.json
+          mkdir -p ../../registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}
+          cp download.json ../../registry/providers/github.com/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}/download.json
 
       - name: Commit and push registry updates
         run: |
