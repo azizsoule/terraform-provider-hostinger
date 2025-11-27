@@ -116,30 +116,96 @@ func (c *HostingerClient) CancelSubscription(subscriptionID string) error {
 	return nil
 }
 
-// orderRequest and orderResponse define the structure for placing an order
-type orderItem struct {
-	ItemID   string `json:"item_id"`
-	Quantity int    `json:"quantity"`
-}
-type orderRequest struct {
-	PaymentMethodID int         `json:"payment_method_id"`
-	Items           []orderItem `json:"items"`
-}
-type orderResponse struct {
-	SubscriptionID string `json:"subscription_id"`
+// SetupRequest defines the payload to set up (activate) a new VPS.
+type SetupRequest struct {
+	DataCenterID        int     `json:"data_center_id"`
+	TemplateID          int     `json:"template_id"`
+	Password            *string `json:"password,omitempty"`
+	Hostname            *string `json:"hostname,omitempty"`
+	PostInstallScriptId *int    `json:"post_install_script_id,omitempty"`
 }
 
-// OrderVPS places a new order for a VPS subscription and returns the subscription ID.
-func (c *HostingerClient) OrderVPS(plan string, paymentMethodID int) (string, error) {
-	url := c.BaseURL + "/api/billing/v1/orders"
+// PurchaseVMRequest defines the payload to purchase a new VPS.
+type PurchaseVMRequest struct {
+	ItemID          string       `json:"item_id"`
+	Setup           SetupRequest `json:"setup"`
+	PaymentMethodID *int         `json:"payment_method_id,omitempty"`
+}
+
+// BillingAddress represents the billing address from an order
+type BillingAddress struct {
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Company   *string `json:"company"`
+	Address1  *string `json:"address_1"`
+	Address2  *string `json:"address_2"`
+	City      *string `json:"city"`
+	State     *string `json:"state"`
+	Zip       *string `json:"zip"`
+	Country   string  `json:"country"`
+	Phone     *string `json:"phone"`
+	Email     string  `json:"email"`
+}
+
+// Order represents the order details from a purchase
+type Order struct {
+	ID             int            `json:"id"`
+	SubscriptionID string         `json:"subscription_id"`
+	Status         string         `json:"status"`
+	Currency       string         `json:"currency"`
+	Subtotal       int            `json:"subtotal"`
+	Total          int            `json:"total"`
+	BillingAddress BillingAddress `json:"billing_address"`
+	CreatedAt      string         `json:"created_at"`
+	UpdatedAt      string         `json:"updated_at"`
+}
+
+// IPAddress VirtualMachine and Template represent the relevant fields of a VPS instance
+type IPAddress struct {
+	ID      int     `json:"id"`
+	Address string  `json:"address"`
+	PTR     *string `json:"ptr"`
+}
+
+type Template struct {
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Documentation string `json:"documentation"`
+}
+
+type VirtualMachine struct {
+	ID              int         `json:"id"`
+	FirewallGroupID *int        `json:"firewall_group_id"`
+	SubscriptionID  string      `json:"subscription_id"`
+	DataCenterID    int         `json:"data_center_id"`
+	Plan            string      `json:"plan"`
+	Hostname        string      `json:"hostname"`
+	State           string      `json:"state"`
+	ActionsLock     string      `json:"actions_lock"`
+	CPUs            int         `json:"cpus"`
+	Memory          int         `json:"memory"`
+	Disk            int         `json:"disk"`
+	Bandwidth       int         `json:"bandwidth"`
+	NS1             string      `json:"ns1"`
+	NS2             string      `json:"ns2"`
+	IPv4            []IPAddress `json:"ipv4"`
+	IPv6            []IPAddress `json:"ipv6"`
+	Template        *Template   `json:"template,omitempty"`
+	CreatedAt       string      `json:"created_at"`
+}
+
+type PurchaseVMResponse struct {
+	Order          Order          `json:"order"`
+	VirtualMachine VirtualMachine `json:"virtual_machine"`
+}
+
+// PurchaseVirtualMachine Purchase Virtual Machine
+func (c *HostingerClient) PurchaseVirtualMachine(purchaseRequest PurchaseVMRequest) (string, error) {
+	url := c.BaseURL + "/api/vps/v1/virtual-machines"
 
 	// Prepare request body
-	reqBody := orderRequest{
-		PaymentMethodID: paymentMethodID,
-		Items: []orderItem{
-			{ItemID: plan, Quantity: 1},
-		},
-	}
+	reqBody := purchaseRequest
 	bodyData, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", err
@@ -162,28 +228,15 @@ func (c *HostingerClient) OrderVPS(plan string, paymentMethodID int) (string, er
 	if resp.StatusCode != http.StatusOK {
 		// Read error response for details
 		errMsg, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("failed to place order (HTTP %d): %s", resp.StatusCode, string(errMsg))
+		return "", fmt.Errorf("failed to purchase virtual machine (HTTP %d): %s", resp.StatusCode, string(errMsg))
 	}
 
 	// Parse successful order response
-	var orderRes orderResponse
-	if err := json.NewDecoder(resp.Body).Decode(&orderRes); err != nil {
+	var purchaseResp PurchaseVMResponse
+	if err := json.NewDecoder(resp.Body).Decode(&purchaseResp); err != nil {
 		return "", fmt.Errorf("invalid order response: %w", err)
 	}
-	return orderRes.SubscriptionID, nil
-}
-
-// VirtualMachine and IPAddress represent the relevant fields of a VPS instance
-type VirtualMachine struct {
-	ID             int         `json:"id"`
-	SubscriptionID string      `json:"subscription_id"`
-	Hostname       string      `json:"hostname"`
-	State          string      `json:"state"`
-	IPv4           []IPAddress `json:"ipv4"`
-	IPv6           []IPAddress `json:"ipv6"`
-}
-type IPAddress struct {
-	Address string `json:"address"`
+	return purchaseResp.Order.SubscriptionID, nil
 }
 
 // GetVirtualMachines lists all VPS instances in the account.
@@ -224,14 +277,6 @@ func (c *HostingerClient) FindVirtualMachineBySubscription(subscriptionID string
 		}
 	}
 	return 0, ErrNotFound
-}
-
-// SetupRequest defines the payload to set up (activate) a new VPS.
-type SetupRequest struct {
-	DataCenterID int     `json:"data_center_id"`
-	TemplateID   int     `json:"template_id"`
-	Password     *string `json:"password,omitempty"`
-	Hostname     *string `json:"hostname,omitempty"`
 }
 
 // SetupVirtualMachine activates a newly purchased VPS (with 'initial' state) by installing the OS.
