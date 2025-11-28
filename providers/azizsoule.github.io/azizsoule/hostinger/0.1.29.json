@@ -1,0 +1,34 @@
+{
+  "archives": {
+    "darwin_amd64": {
+      "url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.29/terraform-provider-hostinger_0.1.29_darwin_amd64.zip",
+      "hashes": [
+        "zh:ec8414ffd29f2aa096a6f4d3e2e25ecc0f3ef566ff4fbd522f82e98d55f648d7"
+      ]
+    },
+    "darwin_arm64": {
+      "url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.29/terraform-provider-hostinger_0.1.29_darwin_arm64.zip",
+      "hashes": [
+        "zh:1650afd79c54b2390d7d139107d8355c5a9fc64383fdeb891745cee29c3526b9"
+      ]
+    },
+    "linux_amd64": {
+      "url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.29/terraform-provider-hostinger_0.1.29_linux_amd64.zip",
+      "hashes": [
+        "zh:7001af896aedc478b30fcaa5c71f0b74848b8655bd2df2b412f45177f4b95632"
+      ]
+    },
+    "linux_arm64": {
+      "url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.29/terraform-provider-hostinger_0.1.29_linux_arm64.zip",
+      "hashes": [
+        "zh:8781cfb802f7aac0bf485074abc7e1c2c8dc5361b6a5a404ca6df81805372ca3"
+      ]
+    },
+    "windows_amd64": {
+      "url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.29/terraform-provider-hostinger_0.1.29_windows_amd64.zip",
+      "hashes": [
+        "zh:83e1562ef78eda23d2b997efb4d67f19688442ee8a94f0709e19f5819cebddec"
+      ]
+    }
+  }
+}
