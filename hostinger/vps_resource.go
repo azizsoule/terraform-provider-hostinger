@@ -115,7 +115,7 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 		hostnamePtr = &h
 	}
 
-	/*var paymentMethodID int
+	var paymentMethodID int
 	if v, ok := d.GetOk("payment_method_id"); ok {
 		paymentMethodID = v.(int)
 	} else {
@@ -124,7 +124,7 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("failed to fetch default payment method: %w", err))
 		}
-	}*/
+	}
 
 	var postInstallScriptID *int
 	if v, ok := d.GetOk("post_install_script_id"); ok {
@@ -158,8 +158,8 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 
 	// Step 1: Purchase the VPS to create a subscription
 	subID, err := client.PurchaseVirtualMachine(PurchaseVMRequest{
-		ItemID: plan,
-		// PaymentMethodID: &paymentMethodID,
+		ItemID:          plan,
+		PaymentMethodID: &paymentMethodID,
 		Setup: SetupRequest{
 			DataCenterID:        dataCenterID,
 			TemplateID:          templateID,

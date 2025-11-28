@@ -228,7 +228,7 @@ func (c *HostingerClient) PurchaseVirtualMachine(purchaseRequest PurchaseVMReque
 	if resp.StatusCode != http.StatusOK {
 		// Read error response for details
 		errMsg, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("failed to purchase virtual machine (HTTP %d): %s", resp.StatusCode, string(errMsg))
+		return "", fmt.Errorf("failed to purchase virtual machine (HTTP %d, Payment Method %d): %s", resp.StatusCode, &purchaseRequest.PaymentMethodID, string(errMsg))
 	}
 
 	// Parse successful order response
