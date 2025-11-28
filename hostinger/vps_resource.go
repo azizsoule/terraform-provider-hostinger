@@ -158,8 +158,8 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 
 	// Step 1: Purchase the VPS to create a subscription
 	subID, err := client.PurchaseVirtualMachine(PurchaseVMRequest{
-		ItemID:          plan,
-		PaymentMethodID: &paymentMethodID,
+		ItemID: plan,
+		// PaymentMethodID: &paymentMethodID,
 		Setup: SetupRequest{
 			DataCenterID:        dataCenterID,
 			TemplateID:          templateID,
@@ -169,7 +169,7 @@ func resourceHostingerVPSCreate(ctx context.Context, d *schema.ResourceData, m i
 		},
 	})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("failed to create VPS order: %w", err))
+		return diag.FromErr(fmt.Errorf("failed to purchase virtual machine: %w", err))
 	}
 
 	// Step 2: Find the new VPS instance by subscription_id (retry until it appears)
