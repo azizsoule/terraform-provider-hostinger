@@ -2,8 +2,12 @@ name: Release Terraform Provider
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches:
+      - main
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - ".github/workflows/lint.yml"
 
 permissions:
   contents: write
@@ -11,9 +15,53 @@ permissions:
   id-token: write
 
 jobs:
+  version:
+    name: Determine version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      should_release: ${{ steps.version.outputs.should_release }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: version
+        run: |
+          LATEST_TAG="${{ steps.latest_tag.outputs.tag }}"
+          # Remove 'v' prefix
+          VERSION="${LATEST_TAG#v}"
+
+          # Parse major.minor.patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          NEW_TAG="v${NEW_VERSION}"
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "should_release=true" >> $GITHUB_OUTPUT
+
+          echo "Next version: $NEW_VERSION (tag: $NEW_TAG)"
+
   build:
     name: Build provider
     runs-on: ubuntu-latest
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
 
     steps:
       - name: Checkout source
@@ -24,15 +72,12 @@ jobs:
         with:
           go-version: "1.21"
 
-      - name: Set version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Create build directory
         run: mkdir -p dist
 
       - name: Build for all OS/Arch
         run: |
+          VERSION="${{ needs.version.outputs.version }}"
           OS_ARCHES=(
             "linux amd64"
             "linux arm64"
@@ -44,7 +89,7 @@ jobs:
           for target in "${OS_ARCHES[@]}"; do
             set -- $target
             GOOS=$1 GOARCH=$2 CGO_ENABLED=0 \
-              go build -o "dist/terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_${1}_${2}" .
+              go build -o "dist/terraform-provider-hostinger_${VERSION}_${1}_${2}" .
           done
 
       - name: Zip artifacts
@@ -58,16 +103,26 @@ jobs:
       - name: Generate SHA256SUMS
         run: |
           cd dist
-          shasum -a 256 *.zip > terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS
+          shasum -a 256 *.zip > terraform-provider-hostinger_${{ needs.version.outputs.version }}_SHA256SUMS
 
       - name: Display artifacts
         run: ls -R dist
 
-      - name: Upload release artifacts
-        id: upload_release
+      - name: Create tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ needs.version.outputs.tag }}
+          git push origin ${{ needs.version.outputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: Release ${{ needs.version.outputs.tag }}
+          generate_release_notes: true
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -75,7 +130,7 @@ jobs:
   update-registry:
     name: Update registry metadata
     runs-on: ubuntu-latest
-    needs: build
+    needs: [version, build]
 
     steps:
       - name: Checkout registry repo
@@ -86,16 +141,6 @@ jobs:
           ref: ${{ secrets.REGISTRY_BRANCH }}
           path: registry
 
-      - name: Checkout provider repo (for hashes)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          path: provider
-
-      - name: Extract version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Prepare registry folder
         run: |
           mkdir -p registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger
@@ -103,7 +148,7 @@ jobs:
       - name: Generate index.json
         run: |
           INDEX_FILE="registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/index.json"
-          VERSION="${{ steps.version.outputs.VERSION }}"
+          VERSION="${{ needs.version.outputs.version }}"
 
           # If index.json exists, add new version; otherwise create new file
           if [ -f "$INDEX_FILE" ]; then
@@ -117,21 +162,24 @@ jobs:
       - name: Download SHA256SUMS from release
         run: |
           mkdir -p artifacts
-          gh release download "v${{ steps.version.outputs.VERSION }}" \
+          # Wait for release to be available
+          sleep 5
+          gh release download "${{ needs.version.outputs.tag }}" \
             --repo "${{ github.repository }}" \
-            --pattern "terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS" \
+            --pattern "terraform-provider-hostinger_${{ needs.version.outputs.version }}_SHA256SUMS" \
             --dir artifacts
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Parse SHASUMS and create download.json
+      - name: Parse SHASUMS and create version.json
         run: |
           cd artifacts
+          VERSION="${{ needs.version.outputs.version }}"
 
           # Start JSON
-          echo '{' > download.json
-          echo '  "protocols": ["5.0"],' >> download.json
-          echo '  "os_arch": {' >> download.json
+          echo '{' > version.json
+          echo '  "protocols": ["5.0"],' >> version.json
+          echo '  "os_arch": {' >> version.json
 
           first=true
           while read -r sha file; do
@@ -142,22 +190,22 @@ jobs:
             if [ "$first" = true ]; then
               first=false
             else
-              echo ',' >> download.json
+              echo ',' >> version.json
             fi
 
-            cat <<EOF >> download.json
+            cat <<EOF >> version.json
             "${os}_${arch}": {
               "filename": "$file",
-              "download_url": "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/$file",
+              "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag }}/$file",
               "shasum": "$sha"
             }
           EOF
 
-          done < terraform-provider-hostinger_${{ steps.version.outputs.VERSION }}_SHA256SUMS
+          done < "terraform-provider-hostinger_${VERSION}_SHA256SUMS"
 
-          echo -e "\n  }\n}" >> download.json
+          echo -e "\n  }\n}" >> version.json
 
-          cp download.json "../registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}.json"
+          cp version.json "../registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/${VERSION}.json"
 
       - name: Commit and push registry updates
         run: |
@@ -165,7 +213,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Update registry for version ${{ steps.version.outputs.VERSION }}"
+          git commit -m "Update registry for version ${{ needs.version.outputs.version }}"
           git push origin ${{ secrets.REGISTRY_BRANCH }}
 
   deploy-pages:
@@ -179,13 +227,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ secrets.REGISTRY_BRANCH }}
 
       - name: Prepare pages content
         run: |
           mkdir -p _site
           cp -r .well-known _site/ 2>/dev/null || true
           cp -r providers _site/ 2>/dev/null || true
-          cp README.md _site/index.md 2>/dev/null || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
