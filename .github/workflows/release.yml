@@ -8,6 +8,7 @@ on:
       - "*.md"
       - "docs/**"
       - ".github/workflows/lint.yml"
+      - "providers/**"
 
 permissions:
   contents: write
