@@ -176,35 +176,24 @@ jobs:
         run: |
           cd artifacts
           VERSION="${{ needs.version.outputs.version }}"
+          TAG="${{ needs.version.outputs.tag }}"
 
-          # Start JSON
-          echo '{' > version.json
-          echo '  "protocols": ["5.0"],' >> version.json
-          echo '  "os_arch": {' >> version.json
+          # Build JSON using jq for proper formatting
+          echo '{"archives":{}}' > version.json
 
-          first=true
           while read -r sha file; do
             # Filename format: terraform-provider-hostinger_VERSION_OS_ARCH.zip
             os=$(echo "$file" | cut -d'_' -f3)
             arch=$(echo "$file" | cut -d'_' -f4 | sed 's/.zip//')
+            platform="${os}_${arch}"
+            url="https://github.com/${{ github.repository }}/releases/download/${TAG}/${file}"
+            hash="zh:${sha}"
 
-            if [ "$first" = true ]; then
-              first=false
-            else
-              echo ',' >> version.json
-            fi
-
-            cat <<EOF >> version.json
-            "${os}_${arch}": {
-              "filename": "$file",
-              "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ needs.version.outputs.tag }}/$file",
-              "shasum": "$sha"
-            }
-          EOF
+            # Add archive entry using jq
+            jq --arg p "$platform" --arg u "$url" --arg h "$hash" \
+              '.archives[$p] = {"url": $u, "hashes": [$h]}' version.json > tmp.json && mv tmp.json version.json
 
           done < "terraform-provider-hostinger_${VERSION}_SHA256SUMS"
-
-          echo -e "\n  }\n}" >> version.json
 
           cp version.json "../registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/${VERSION}.json"
 
