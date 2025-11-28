@@ -98,7 +98,7 @@ jobs:
 
       - name: Prepare registry folder
         run: |
-          mkdir -p registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}
+          mkdir -p registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger
 
       - name: Generate index.json
         run: |
@@ -157,7 +157,7 @@ jobs:
 
           echo -e "\n  }\n}" >> download.json
 
-          cp download.json ../registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}/download.json
+          cp download.json "../registry/providers/azizsoule.github.io/${{ github.repository_owner }}/hostinger/${{ steps.version.outputs.VERSION }}.json"
 
       - name: Commit and push registry updates
         run: |
