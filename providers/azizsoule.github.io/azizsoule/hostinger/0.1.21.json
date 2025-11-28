@@ -1,0 +1,35 @@
+{
+  "protocols": ["5.0"],
+  "os_arch": {
+  "darwin_amd64": {
+    "filename": "terraform-provider-hostinger_0.1.21_darwin_amd64.zip",
+    "download_url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.21/terraform-provider-hostinger_0.1.21_darwin_amd64.zip",
+    "shasum": "0fc7fd83ee4a926987478031d4ae1080755bd88f13337cd9a55d1ceab6573aa5"
+  }
+,
+  "darwin_arm64": {
+    "filename": "terraform-provider-hostinger_0.1.21_darwin_arm64.zip",
+    "download_url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.21/terraform-provider-hostinger_0.1.21_darwin_arm64.zip",
+    "shasum": "deb17221fa58f92706e1812ce9a305105d364e2ca94cb49c8aeac1a435639f3a"
+  }
+,
+  "linux_amd64": {
+    "filename": "terraform-provider-hostinger_0.1.21_linux_amd64.zip",
+    "download_url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.21/terraform-provider-hostinger_0.1.21_linux_amd64.zip",
+    "shasum": "f0a2d3bcb0c590ccfe30d2f3a527b3fb5af96bbf452cc4908eba22ba805601c1"
+  }
+,
+  "linux_arm64": {
+    "filename": "terraform-provider-hostinger_0.1.21_linux_arm64.zip",
+    "download_url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.21/terraform-provider-hostinger_0.1.21_linux_arm64.zip",
+    "shasum": "22b2b1f51378808e2da4e53657be720a82ea7d575bdff6cfe52d06af7429723c"
+  }
+,
+  "windows_amd64": {
+    "filename": "terraform-provider-hostinger_0.1.21_windows_amd64.zip",
+    "download_url": "https://github.com/azizsoule/terraform-provider-hostinger/releases/download/v0.1.21/terraform-provider-hostinger_0.1.21_windows_amd64.zip",
+    "shasum": "9065bc4d71c79cacfd69b36de2c95800f6e5390c28c736173c3857fb700548b2"
+  }
+
+  }
+}
